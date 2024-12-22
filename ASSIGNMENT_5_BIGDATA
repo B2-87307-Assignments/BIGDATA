@@ -1,0 +1,282 @@
+1. Create a transactional ORC table "ﬁre_data" with appropriate data types partitioned by city and buckted by call number into 4 buckets. Load data from
+staging table into this table.
+
+create table fire_staging(
+Call_Number int ,
+Unit_ID int,
+Incident_Number int,
+Call_Type string,
+Call_Date date,
+Watch_Date date,
+Received_DtTm string,
+Entry_DtTm string,
+Dispatch_DtTm string,
+Response_DtTm string,
+On_Scene_DtTm string,
+Transport_DtTm string,
+Hospital_DtTm string,
+Call_Final_Disposition string,
+Available_DtTm string,
+Address string,
+City string,
+Zipcode_of_Incident int,
+Battalion string,
+Station_Area int,
+Box int,
+Original_Priority int,
+Priority int,
+Final_Priority int,
+ALS_Unit boolean,
+Call_Type_Group string,
+Number_of_Alarms int,
+Unit_Type string,
+Unit_sequence_in_call_dispatch int,
+Fire_Prevention_District int,
+Supervisor_District int,
+Neighborhooods_Analysis_Boundaries string,
+RowID string,
+case_location string,
+data_as_of string,
+data_loaded_at string,
+Analysis_Neighborhoods int
+)
+row format delimited
+fields terminated by ','
+stored as textfile
+tblproperties("skip.header.line.count"="1");
+
+load data local inpath '/home/sharansh/Desktop/ASSIGNMENT_BIGDATA/Fire_Department_Calls_for_Service.csv'
+into table fire_staging;
+
+
+drop table if exists fire_ocr;
+create table fire_ocr(
+Call_Number int ,
+Unit_ID int,
+Incident_Number int,
+Call_Type string,
+Call_Date date,
+Watch_Date date,
+Received_DtTm string,
+Entry_DtTm string,
+Dispatch_DtTm string,
+Response_DtTm string,
+On_Scene_DtTm string,
+Transport_DtTm string,
+Hospital_DtTm string,
+Call_Final_Disposition string,
+Available_DtTm string,
+Address string,
+Zipcode_of_Incident int,
+Battalion string,
+Station_Area int,
+Box int,
+Original_Priority int,
+Priority int,
+Final_Priority int,
+ALS_Unit boolean,
+Call_Type_Group string,
+Number_of_Alarms int,
+Unit_Type string,
+Unit_sequence_in_call_dispatch int,
+Fire_Prevention_District int,
+Supervisor_District int,
+Neighborhooods_Analysis_Boundaries string,
+RowID string,
+case_location string,
+data_as_of string,
+data_loaded_at string,
+Analysis_Neighborhoods int
+)
+partitioned by (City string)
+clustered by (Call_Number) into 4 buckets
+row format delimited
+fields terminated by ','
+stored as orc
+tblproperties('transactional'='true');
+
+insert into fire_ocr partition(City)
+select Call_Number,
+Unit_ID ,
+Incident_Number,
+Call_Type ,
+Call_Date ,
+Watch_Date ,
+Received_DtTm,
+Entry_DtTm,
+Dispatch_DtTm,
+Response_DtTm,
+On_Scene_DtTm ,
+Transport_DtTm,
+Hospital_DtTm,
+Call_Final_Disposition,
+Available_DtTm,
+Address,
+Zipcode_of_Incident,
+Battalion ,
+Station_Area,
+Box ,
+Original_Priority,
+Priority,
+Final_Priority,
+ALS_Unit,
+Call_Type_Group,
+Number_of_Alarms,
+Unit_Type,
+Unit_sequence_in_call_dispatch,
+Fire_Prevention_District,
+Supervisor_District,
+Neighborhooods_Analysis_Boundaries,
+RowID ,
+case_location,
+data_as_of,
+data_loaded_at ,
+Analysis_Neighborhoods,
+City
+from fire_staging;
+
+
+
+
+2. Execute following queries on ﬁre dataset.
+1. How many distinct types of calls were made to the ﬁre department?
+
+create materialized view m_view_call_type as
+select call_type from fire_ocr;
+
+select count(distinct call_type) from m_view_call_type;
+
++------+
+| _c0  |
++------+
+| 33   |
++------+
+1 row selected (21.315 seconds)
+
+
+2. What are distinct types of calls made to the ﬁre department?
+
+select distinct call_type from m_view_call_type;
+
++--------------------------------------+
+|              call_type               |
++--------------------------------------+
+| "Extrication / Entrapped (Machinery  |
+| Administrative                       |
+| Alarms                               |
+| Electrical Hazard                    |
+| Elevator / Escalator Rescue          |
+| Fuel Spill                           |
+| Gas Leak (Natural and LP Gases)      |
+| High Angle Rescue                    |
+| Marine Fire                          |
+| Mutual Aid / Assist Outside Agency   |
+| Odor (Strange / Unknown)             |
+| Oil Spill                            |
+| Other                                |
+| Structure Fire / Smoke in Building   |
+| Vehicle Fire                         |
+| Water Rescue                         |
+| Aircraft Emergency                   |
+| Assist Police                        |
+| Citizen Assist / Service Call        |
+| Confined Space / Structure Collapse  |
+| Explosion                            |
+| HazMat                               |
+| Industrial Accidents                 |
+| Lightning Strike (Investigation)     |
+| Medical Incident                     |
+| Outside Fire                         |
+| Smoke Investigation (Outside)        |
+| Structure Fire                       |
+| Suspicious Package                   |
+| Traffic Collision                    |
+| Train / Rail Fire                    |
+| Train / Rail Incident                |
+| Watercraft in Distress               |
++--------------------------------------+
+33 rows selected (19.274 seconds)
+
+3. Find out all responses for delayed times greater than 5 mins?
+
+select distinct year(from_unixtime(unix_timestamp(Call_Date))) from fire_ocr;
+
+
+
+4. What were the most common call types?
+
+select call_type,count(call_type) cnt from m_view_call_type
+group by call_type order by cnt desc limit 10;
+
++----------------------------------+----------+
+|            call_type             |   cnt    |
++----------------------------------+----------+
+| Medical Incident                 | 4247943  |
+| Alarms                           | 720968   |
+| Structure Fire                   | 714873   |
+| Traffic Collision                | 259541   |
+| Other                            | 110855   |
+| Citizen Assist / Service Call    | 96222    |
+| Outside Fire                     | 85967    |
+| Water Rescue                     | 34061    |
+| Gas Leak (Natural and LP Gases)  | 30484    |
+| Vehicle Fire                     | 28378    |
++----------------------------------+----------+
+10 rows selected (37.919 seconds)
+
+
+5. What zip codes accounted for the most common calls?
+
+select  distinct zipcode_of_incident,call_type from fire_ocr
+where call_type in ("Medical Incident","Alarms") limit 20;
+
++----------------------+-------------------+
+| zipcode_of_incident  |     call_type     |
++----------------------+-------------------+
+|                      | Alarms            |
+| 94102                | Alarms            |
+| 94104                | Alarms            |
+| 94108                | Alarms            |
+| 94111                | Alarms            |
+| 94115                | Alarms            |
+| 94117                | Alarms            |
+| 94122                | Alarms            |
+| 94124                | Alarms            |
+| 94131                | Alarms            |
+| 94133                | Alarms            |
+| PR                   | Alarms            |
+| San Francisco        | Alarms            |
+| Treasure Isla        | Alarms            |
+| 94103                | Medical Incident  |
+| 94105                | Medical Incident  |
+| 94107                | Medical Incident  |
+| 94109                | Medical Incident  |
+| 94110                | Medical Incident  |
+| 94112                | Medical Incident  |
++----------------------+-------------------+
+
+
+6. What San Francisco neighborhoods are in the zip codes 94102 and 94103?
+
+select * from fire_ocr where zipcode_of_incident in (94102,94103) and city="San Francisco" limit 10;
+
+7. What was the sum of all calls, average, min, and max of the call response times?
+
+create materialized view m_view_call_type as
+select call_type from fire_ocr;
+
+select count(distinct call_type) from m_view_call_type;
+8. How many distinct years of data are in the CSV ﬁle?
+
+select distinct year(from_unixtime(unix_timestamp(Call_Date))) from fire_ocr;
+
+9. What week of the year in 2018 had the most ﬁre calls?
+
+select weekofyear(call_date) from fire_ocr
+where year(call_date)=2018 and call_type="Medical Incident";
+
+10. What neighborhoods in San Francisco had the worst response time in 2018?
+
+select call_type,count(call_type) cnt from m_view_call_type
+group by call_type order by cnt desc limit 10;
+
